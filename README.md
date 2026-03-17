@@ -1,4 +1,4 @@
-# Agent2Aent-Openclaw
+# Agent2Agent-Openclaw
 Improved Version of OpenClaw: Integration of On-Device Intelligence and Cloud-Based Intelligence
 
 OpenClaw relies on the power of cloud-based LLMs to interact with users through apps like instant messengers, and handles all sorts of sophisticated tasks with its extensive agent functionalities. That said, a string of recent events has laid bare its undeniable security flaws. Even with full configuration options and rigid permission controls in place, this lobster still finds all kinds of unexpected ways to "wipe every file off your computer".
