@@ -21,42 +21,179 @@ For this on-device agent, we’ve opted to deploy a Vision Language Model (VLM) 
 
 首版通过远端代码审查和本地文件报告验证这两条路径，并在 macOS 和 Windows 上建立内存占用与冷启动时间基线。多个远端 Agent 可以独立上线和注册，端侧按需选择和组合它们，为端云协同、Agent 集群和多 Agent 协作提供基础。
 
-#### 启动
+## 运行指南
 
-安装 Python 3.12、uv 和 [ZeroClaw 0.8.7](https://github.com/zeroclaw-labs/zeroclaw/releases/tag/v0.8.7)。在运行专家的机器上安装已登录的 Codex CLI，以及 Node.js 24.9+ 和 `@deepseek-ai/dsh@0.2.2-rc.1`。本机运行全部服务时执行 `uv sync --all-extras`。只运行端侧时执行 `uv sync --no-dev`。Windows 使用 PowerShell 和同样的 `uv run` 命令。
+**一台机器联调**时，注册目录、三个专家、端侧工作台和 ZeroClaw 都在本机运行。需要分开部署时，可在 Mac 或服务器上运行目录和专家，在 macOS 或 Windows 上只启动端侧。完整链路已在 macOS Apple Silicon 上验证。Windows x64 以下使用原生 PowerShell，整套联调和性能基线待实测。
 
-每个服务启动前，在对应终端或服务管理器配置以下环境变量。模型地址使用 OpenAI 兼容 API 根路径，例如 `https://api.example.com/v1`。在本机联调时可以为三个模型前缀使用同一套服务配置。
+### 1. macOS 安装
 
-| 服务 | 环境变量 |
-| --- | --- |
-| 全部 | `AGENT_PLATFORM_TOKEN`，使用同一个自生成的高熵值 |
-| 端侧与三个专家 | `AGENT_REGISTRY_URL`，本机值为 `http://127.0.0.1:8310` |
-| 端侧 | `AGENT_ALLOWED_ORIGINS`，本机值为 `http://127.0.0.1:8311,http://127.0.0.1:8312,http://127.0.0.1:8313` |
-| ZeroClaw | `EDGE_MODEL_URL`、`EDGE_MODEL`、`EDGE_MODEL_API_KEY` |
-| dsh | `DSH_MODEL_URL`、`DSH_MODEL`、`DSH_MODEL_API_KEY` |
-| AgentScope | `AGENTSCOPE_MODEL_URL`、`AGENTSCOPE_MODEL`、`AGENTSCOPE_MODEL_API_KEY` |
-| 可执行文件路径 | 可通过 `ZEROCLAW_BIN`、`CODEX_BIN`、`DSH_BIN` 指定 |
-
-在不同终端中先启动目录，再启动三个专家和工作台。将 `./workspace` 换成你授权给端侧执行器的现有目录。
+在终端中用 [Homebrew](https://brew.sh/) 安装 Git 和 uv。下载与当前架构匹配的 ZeroClaw 0.8.7，并解压到仓库的本机目录。
 
 ```sh
-uv run python -m edge_agents registry
-uv run python -m edge_agents worker codex --port 8311 --public-url http://127.0.0.1:8311/a2a
-uv run python -m edge_agents worker dsh --port 8312 --public-url http://127.0.0.1:8312/a2a
-uv run --extra agentscope python -m edge_agents worker agentscope --port 8313 --public-url http://127.0.0.1:8313/a2a
-uv run python -m edge_agents edge --workspace ./workspace
+brew install git uv
+git clone --branch codex/edge-agent https://github.com/XCBG-weixiao/Agent2Agent-Openclaw.git
+cd Agent2Agent-Openclaw
+uv python install 3.12
+
+mkdir -p .edge-state/bin .edge-state/demo-workspace
+archive="zeroclaw-$(uname -m)-apple-darwin.tar.gz"
+curl -fL "https://github.com/zeroclaw-labs/zeroclaw/releases/download/v0.8.7/$archive" -o ".edge-state/$archive"
+tar -xzf ".edge-state/$archive" -C .edge-state/bin
+.edge-state/bin/zeroclaw --version
+
+printf 'alpha\nbeta\n' > .edge-state/demo-workspace/sample.txt
 ```
 
-打开 <http://127.0.0.1:8300>。端侧进程单独运行 ZeroClaw，默认网关端口为 8301。端侧调用和目录查询使用 Bearer Token，跨主机部署时为目录与专家设置 HTTPS 入口，把实际 A2A 地址填入 `--public-url`，并把对应源站加入端侧的 `AGENT_ALLOWED_ORIGINS`。Codex 适配器沿用 CLI 配置和登录。模型密钥通过进程环境传递。
-
-#### 验证
-
-- 在端侧已启动时启动专家。提交包含边界条件缺陷的代码，检查发现、委托和结果。强制停止专家后，它会在租约到期后从列表消失。
-- 在授权目录里放入 UTF-8 的 `.txt` 或 `.md` 文件。选择「按计划在本地执行」，输入源目录和一个新的 Markdown 报告路径。报告所在父目录需已存在。源文件内容只由端侧读取。
-- 自动化检查使用 `uv run pytest`。性能测量需要目录、AgentScope 和模型服务已就绪。从与端侧相同的环境运行下方命令。脚本启动独立的端侧进程 30 次，记录入口与网关会话就绪时间，最后一次启动后执行同一个文件统计任务并采样进程树的峰值内存。macOS 报告 RSS，Windows 报告工作集。各平台独立记录结果。
+在这台 Mac 上运行专家时，再安装 Node.js 24.9 或更高版本、Codex CLI 和 dsh。已有 Codex CLI 和登录可以直接复用。
 
 ```sh
-uv run python -m edge_agents.benchmark --output benchmark-local.json
+brew install node@24
+export PATH="$(brew --prefix node@24)/bin:$PATH"
+node --version
+npm install -g @deepseek-ai/dsh@0.2.2-rc.1
+dsh --profile headless --help
+
+# 仅首次安装 Codex CLI 时执行
+curl -fsSL https://chatgpt.com/codex/install.sh | sh
+```
+
+新终端中也要能找到 Node、dsh 和 Codex。若 Node 由上面的 `node@24` 提供，把对应的 `export PATH=…` 加到 shell 配置，或在启动 dsh 的终端再执行一次。首次使用 Codex 时运行 `codex login`，用 `codex login status` 检查登录。 [Codex CLI 安装与登录](https://learn.chatgpt.com/docs/codex/cli)
+
+### 2. Windows x64 安装
+
+在 PowerShell 中安装 Git 和 uv。安装后打开一个新的 PowerShell，再下载项目和 ZeroClaw。
+
+```powershell
+winget install --exact --id Git.Git
+winget install --exact --id astral-sh.uv
+```
+
+```powershell
+git clone --branch codex/edge-agent https://github.com/XCBG-weixiao/Agent2Agent-Openclaw.git
+Set-Location Agent2Agent-Openclaw
+uv python install 3.12
+
+New-Item -ItemType Directory -Force .edge-state/bin, .edge-state/demo-workspace | Out-Null
+Invoke-WebRequest -UseBasicParsing -Uri 'https://github.com/zeroclaw-labs/zeroclaw/releases/download/v0.8.7/zeroclaw-x86_64-pc-windows-msvc.zip' -OutFile .edge-state/zeroclaw.zip
+Expand-Archive -Path .edge-state/zeroclaw.zip -DestinationPath .edge-state/bin -Force
+& ./.edge-state/bin/zeroclaw.exe --version
+
+@('alpha', 'beta') | Set-Content -Encoding ascii .edge-state/demo-workspace/sample.txt
+```
+
+在 Windows 同机联调时，先从 [Node.js 官网](https://nodejs.org/en/download) 安装 Node.js 24.9 或更高版本，并从 [Codex 官方 Windows 安装说明](https://learn.chatgpt.com/docs/enterprise/windows-deployment#choose-an-installation-method) 安装原生 CLI。重新打开 PowerShell，确认 Codex 和 dsh 可用。只运行 Windows 端侧时，在专家所在机器上安装这些工具即可。
+
+```powershell
+node --version
+npm.cmd install -g @deepseek-ai/dsh@0.2.2-rc.1
+dsh.cmd --profile headless --help
+codex login
+codex login status
+```
+
+### 3. 安装 Python 依赖并配置模型
+
+在仓库根目录运行。macOS 和 Windows 使用相同命令。
+
+```sh
+# 同机运行全部服务，或在专家主机上安装
+uv sync --frozen --all-extras
+
+# 只运行端侧时，用这条代替上一条
+uv sync --frozen --no-dev
+```
+
+用以下命令生成一个注册平台令牌。目录、专家和端侧使用同一个值。
+
+```sh
+uv run --no-sync python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+在仓库根目录创建名为 `.env` 的 UTF-8 文件，填入下面的内容并替换占位值。macOS 可以用任意文本编辑器，Windows 可用 `notepad .env`。确认文件名为 `.env`。Git 已忽略这个文件，密钥放在这里或运行环境中。
+
+```dotenv
+AGENT_PLATFORM_TOKEN=替换为上一步生成的值
+AGENT_REGISTRY_URL=http://127.0.0.1:8310
+AGENT_ALLOWED_ORIGINS=http://127.0.0.1:8311,http://127.0.0.1:8312,http://127.0.0.1:8313
+
+# macOS 用此路径，Windows 在文件名末尾加 .exe
+ZEROCLAW_BIN=.edge-state/bin/zeroclaw
+
+EDGE_MODEL_URL=https://api.example.com/v1
+EDGE_MODEL=替换为模型ID
+EDGE_MODEL_API_KEY=替换为密钥
+
+DSH_MODEL_URL=https://api.example.com/v1
+DSH_MODEL=替换为模型ID
+DSH_MODEL_API_KEY=替换为密钥
+
+AGENTSCOPE_MODEL_URL=https://api.example.com/v1
+AGENTSCOPE_MODEL=替换为模型ID
+AGENTSCOPE_MODEL_API_KEY=替换为密钥
+```
+
+- 模型地址填服务的 OpenAI 兼容 API 根路径。若已有 dsh 模型配置，可以把同一套 URL、API 密钥和模型 ID 分别填到 `EDGE_`、`DSH_`、`AGENTSCOPE_` 三组。项目的 dsh 适配器通过这些变量配置 headless 进程。ZeroClaw 的模型需要支持工具调用。
+- Codex 使用当前用户已有的 CLI 配置和登录。若终端找不到可执行文件，可在 `.env` 里设置 `CODEX_BIN`、`DSH_BIN` 或 `ZEROCLAW_BIN`。手动指定 Codex 或 dsh 时使用绝对路径。有空格的路径可用双引号包住。Windows 路径建议在 `.env` 中使用正斜杠。
+- 只运行端侧时，填写 `AGENT_PLATFORM_TOKEN`、`AGENT_REGISTRY_URL`、`AGENT_ALLOWED_ORIGINS`、`ZEROCLAW_BIN` 和三项 `EDGE_MODEL_*`。目录进程只需要平台令牌。专家进程还需要目录地址，dsh 和 AgentScope 各需要自己的三项模型变量。
+
+### 4. 启动服务
+
+同机联调时打开五个终端标签页，每个都进入仓库根目录。**先运行第 1 条**，等目录开始监听，再分别运行其余四条。每条命令占用一个终端，macOS 和 Windows 均可使用。
+
+| 终端 | 服务 | 命令 |
+| --- | --- | --- |
+| 1 | 注册目录，端口 8310 | `uv run --no-sync --env-file .env python -m edge_agents registry` |
+| 2 | Codex，端口 8311 | `uv run --no-sync --env-file .env python -m edge_agents worker codex --port 8311 --public-url http://127.0.0.1:8311/a2a` |
+| 3 | dsh，端口 8312 | `uv run --no-sync --env-file .env python -m edge_agents worker dsh --port 8312 --public-url http://127.0.0.1:8312/a2a` |
+| 4 | AgentScope，端口 8313 | `uv run --no-sync --env-file .env python -m edge_agents worker agentscope --port 8313 --public-url http://127.0.0.1:8313/a2a` |
+| 5 | 端侧工作台，端口 8300；ZeroClaw 网关，端口 8301 | `uv run --no-sync --env-file .env python -m edge_agents edge --workspace .edge-state/demo-workspace` |
+
+打开 [本地工作台](http://127.0.0.1:8300/)。也可以用下面的命令检查就绪状态和在线专家。在 Windows PowerShell 上将 `curl` 写作 `curl.exe`。
+
+```sh
+curl -fsS http://127.0.0.1:8300/api/ready
+curl -fsS http://127.0.0.1:8300/api/agents
+```
+
+就绪接口应返回 `{"ready":true}`。在线列表应包含 `codex`、`dsh`、`agentscope`。停止时，在各服务终端按 `Ctrl+C`。停止端侧进程也会停止它启动的 ZeroClaw 网关。专家停机后，目录最长约 15 秒移除其注册记录。
+
+### 5. 端侧与专家分开部署
+
+例如，在另一台 Mac 或服务器运行目录和专家，在 Windows 原生 PowerShell 启动工作台。
+
+1. 在专家主机执行第 3 步的全量依赖安装，并安装已登录的 Codex CLI 和 dsh。为目录与各专家配置端侧可访问的 HTTPS 入口，分别转发到它们实际监听的端口。
+2. 在专家主机运行第 4 步中的前四个服务。各专家的 `AGENT_REGISTRY_URL` 指向可达的目录地址，`--public-url` 改为端侧可达的完整 A2A URL，例如 `https://codex.example.com/a2a`。目录和专家使用同一个平台令牌。
+3. 在端侧配置文件里，将 `AGENT_REGISTRY_URL` 改为目录 HTTPS 地址，将 `AGENT_ALLOWED_ORIGINS` 改为专家的 HTTPS 源站，用逗号分隔，例如 `https://codex.example.com,https://dsh.example.com,https://agentscope.example.com`。源站填写协议、主机和可选端口。
+4. 在端侧只运行第 4 步的第 5 条命令。工作台、ZeroClaw 和文件执行器在端侧运行，目录与专家通过网络访问。
+
+### 6. 验证两条任务链路
+
+**获取远端结果**。在页面选择「获取远端结果」，提交下面的示例，查看协作时间线中的发现、委托和返回事件。三个专家在线时，可核对 Codex 的初审、dsh 的复审以及 AgentScope 的测试建议。
+
+```text
+请让 Codex 和 dsh 分别检查空输入，再让 AgentScope 设计测试。
+
+def first(items):
+    return items[0]
+```
+
+**按计划在本地执行**。在页面选择「按计划在本地执行」。源目录填 `.`，新报告路径填 `file-summary.md`。使用前面的示例工作目录时，报告会写入 `.edge-state/demo-workspace/file-summary.md`，其中 `sample.txt` 应统计为 2 行。再次执行请换一个报告名。用 `../outside.md` 作为报告路径应得到拒绝。
+
+### 7. 排错与性能测量
+
+| 现象 | 检查 |
+| --- | --- |
+| `uv` 或专家 CLI 找不到 | 安装后打开新终端，检查 PATH。已知可执行文件路径时可设置相应的 `*_BIN`。 |
+| 端侧未就绪 | 检查端侧终端的启动日志，确认 `ZEROCLAW_BIN` 指向 0.8.7，并确认 8300 和 8301 可用。端侧可通过 `--port` 和 `--gateway-port` 指定端口。 |
+| 专家列表为空 | 确认目录和专家都已启动、平台令牌相同，并核对注册卡的 `--public-url` 与端侧允许的源站。 |
+| 委托或模型调用失败 | 检查对应终端的日志和模型配置。Codex 可用 `codex login status` 验证登录，dsh 和 AgentScope 要填对模型 ID、根路径和密钥。 |
+| 本地报告写入失败 | 路径以 `--workspace` 指定的目录为根，使用相对路径和正斜杠。确认父目录已存在，报告文件名可用。 |
+
+全量依赖安装后，运行测试和性能测量。性能测量需要目录、AgentScope 和模型服务在线，默认另用 8400 和 8401，测量当前平台的端侧进程树。脚本做 30 次进程冷启动，最后一次启动后执行文件统计任务。macOS 记录 RSS，Windows 记录工作集。
+
+```sh
+uv run --no-sync pytest
+uv run --no-sync --env-file .env python -m edge_agents.benchmark --output benchmark-local.json
 ```
 
 #### 性能基线
