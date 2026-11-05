@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>端云协同工作台</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script defer src="/static/app.js"></script>
+</head>
+<body>
+  <header>
+    <p>ZEROCLAW · A2A</p>
+    <h1>端云协同工作台</h1>
+    <p>发现在线专家，将任务委托给远端，或在本机执行它提供的计划。</p>
+  </header>
+  <main>
+    <section>
+      <h2>新任务</h2>
+      <form id="task">
+        <label for="mode">执行方式</label>
+        <select id="mode">
+          <option value="result">获取远端结果</option>
+          <option value="plan">按计划在本地执行</option>
+        </select>
+        <div id="direct">
+          <label for="request">代码和审查要求</label>
+          <textarea id="request" maxlength="48000" rows="8" placeholder="粘贴代码，并说明你希望专家检查什么。"></textarea>
+        </div>
+        <div id="local" hidden>
+          <p>统计指定目录内 UTF-8 文本文件的行数，并生成 Markdown 报告。</p>
+          <label for="source">源目录（相对路径）</label>
+          <input id="source" value=".">
+          <label for="report">新报告（相对路径）</label>
+          <input id="report" value="file-summary.md">
+        </div>
+        <button id="submit">提交任务</button>
+      </form>
+    </section>
+    <aside>
+      <h2>在线专家</h2>
+      <ul id="agents" aria-live="polite"></ul>
+    </aside>
+    <section class="wide">
+      <h2>协作过程</h2>
+      <ol id="events" aria-live="polite"></ol>
+      <pre id="output" aria-live="polite" hidden></pre>
+    </section>
+  </main>
+</body>
+</html>
