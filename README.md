@@ -148,7 +148,7 @@ AGENTSCOPE_MODEL_API_KEY=替换为密钥
 | 4 | AgentScope，端口 8313 | `uv run --no-sync --env-file .env python -m edge_agents worker agentscope --port 8313 --public-url http://127.0.0.1:8313/a2a` |
 | 5 | 端侧工作台，端口 8300；ZeroClaw 网关，端口 8301 | `uv run --no-sync --env-file .env python -m edge_agents edge --workspace .edge-state/demo-workspace` |
 
-打开 [本地工作台](http://127.0.0.1:8300/)。左侧列出会话，中间可以连续向 ZeroClaw 提问，右侧任务面板显示当前轮的目标、专家任务、执行阶段和工具结果。窄屏上用右上角按钮打开任务面板。会话记录保存在当前浏览器，ZeroClaw 的上下文默认保存在本机的 `.edge-state/gateway-8301/`。也可以用下面的命令检查就绪状态和在线专家。在 Windows PowerShell 上将 `curl` 写作 `curl.exe`。
+打开 [本地工作台](http://127.0.0.1:8300/)。左侧会话列表默认展开，可用左上角按钮折叠。中间可以连续向 ZeroClaw 提问，右侧任务面板显示当前轮的目标、专家任务、执行阶段和工具结果。窄屏上用右上角按钮打开任务面板。会话记录保存在当前浏览器，ZeroClaw 的上下文默认保存在本机的 `.edge-state/gateway-8301/`。也可以用下面的命令检查就绪状态和在线专家。在 Windows PowerShell 上将 `curl` 写作 `curl.exe`。
 
 ```sh
 curl -fsS http://127.0.0.1:8300/api/ready
@@ -165,6 +165,10 @@ curl -fsS http://127.0.0.1:8300/api/agents
 2. 在专家主机运行第 4 步中的前四个服务。各专家的 `AGENT_REGISTRY_URL` 指向可达的目录地址，`--public-url` 改为端侧可达的完整 A2A URL，例如 `https://codex.example.com/a2a`。目录和专家使用同一个平台令牌。
 3. 在端侧配置文件里，将 `AGENT_REGISTRY_URL` 改为目录 HTTPS 地址，将 `AGENT_ALLOWED_ORIGINS` 改为专家的 HTTPS 源站，用逗号分隔，例如 `https://codex.example.com,https://dsh.example.com,https://agentscope.example.com`。源站填写协议、主机和可选端口。
 4. 在端侧只运行第 4 步的第 5 条命令。工作台、ZeroClaw 和文件执行器在端侧运行，目录与专家通过网络访问。
+
+局域网与公网都可以部署。跨机器时，端侧须能访问目录和 Agent Card 中的 HTTPS 地址，注册端须能访问目录并续约。明文 HTTP 只用于本机环回地址。局域网可用内网 HTTPS 域名，证书须通过端侧 HTTP 客户端的 TLS 校验。
+
+接入外部 Agent 时，注册到目录的 Agent Card 目前须公布一个 A2A 1.0 JSON-RPC 接口，并把该源站加入端侧的 `AGENT_ALLOWED_ORIGINS`。公开 Agent Card 本身不会触发本项目自动注册。当前端侧会把 `AGENT_PLATFORM_TOKEN` 作为 Bearer 令牌发送给远端 Agent，适用于信任该令牌接收方的部署。
 
 ### 6. 验证两条任务链路
 

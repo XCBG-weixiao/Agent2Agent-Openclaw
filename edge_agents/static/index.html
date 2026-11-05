@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="dark">
+  <meta name="color-scheme" content="light">
   <title>Relay · Agent 工作台</title>
   <link rel="stylesheet" href="/static/style.css">
   <script defer src="/static/app.js"></script>
@@ -27,7 +27,7 @@
 
   <div class="app">
     <header class="topbar">
-      <button class="icon-button mobile-nav" id="show-history" type="button" aria-label="打开会话列表" aria-controls="sidebar" aria-expanded="false"><svg><use href="#i-menu"/></svg></button>
+      <button class="icon-button history-toggle" id="show-history" type="button" aria-label="切换会话列表" aria-controls="sidebar" aria-expanded="true"><svg><use href="#i-menu"/></svg></button>
       <div class="wordmark"><span class="brand-mark"><svg><use href="#i-relay"/></svg></span><span>Relay</span><span class="brand-divider"></span><span class="brand-caption">端云协同工作台</span></div>
       <div class="topbar-right">
         <span class="connection" id="connection" data-state="checking"><span></span><span id="connection-text">正在连接</span></span>

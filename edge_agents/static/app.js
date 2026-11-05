@@ -70,24 +70,56 @@ function save() {
   }
 }
 
-function openPanel(panel = "") {
+const historyDrawer = matchMedia("(max-width: 599px)");
+const inspectorDrawer = matchMedia("(max-width: 850px)");
+let historyOpen = true;
+let inspectorOpen = false;
+
+function syncPanels() {
+  const showInspectorDrawer = inspectorDrawer.matches && inspectorOpen;
+  const panel = showInspectorDrawer ? "inspector" : historyDrawer.matches && historyOpen ? "history" : "";
+  document.body.dataset.history = historyOpen ? "open" : "closed";
   document.body.dataset.panel = panel;
   byId("close-panel").hidden = !panel;
-  byId("show-history").setAttribute("aria-expanded", panel === "history");
-  byId("show-inspector").setAttribute("aria-expanded", panel === "inspector");
+  byId("show-history").setAttribute("aria-expanded", historyOpen);
+  byId("show-inspector").setAttribute("aria-expanded", showInspectorDrawer);
+}
+
+function closeDrawer() {
+  if (document.body.dataset.panel === "history") historyOpen = false;
+  inspectorOpen = false;
+  syncPanels();
+}
+
+function focusConversation() {
+  if (historyDrawer.matches) historyOpen = false;
+  inspectorOpen = false;
+  syncPanels();
 }
 
 byId("show-history").addEventListener("click", () => {
-  openPanel(document.body.dataset.panel === "history" ? "" : "history");
+  inspectorOpen = false;
+  historyOpen = !historyOpen;
+  syncPanels();
 });
 byId("show-inspector").addEventListener("click", () => {
-  openPanel(document.body.dataset.panel === "inspector" ? "" : "inspector");
+  inspectorOpen = !inspectorOpen;
+  if (inspectorOpen && historyDrawer.matches) historyOpen = false;
+  syncPanels();
 });
-byId("close-panel").addEventListener("click", () => openPanel());
+byId("close-panel").addEventListener("click", closeDrawer);
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape") openPanel();
+  if (event.key === "Escape") closeDrawer();
 });
-matchMedia("(max-width: 850px)").addEventListener("change", () => openPanel());
+historyDrawer.addEventListener("change", () => {
+  if (historyDrawer.matches && inspectorOpen) historyOpen = false;
+  syncPanels();
+});
+inspectorDrawer.addEventListener("change", () => {
+  inspectorOpen = false;
+  syncPanels();
+});
+syncPanels();
 
 function currentTurn() {
   return selected?.turns.at(-1);
@@ -110,7 +142,7 @@ function renderHistory() {
     button.addEventListener("click", () => {
       selected = chat;
       save();
-      openPanel();
+      focusConversation();
       renderChat(true);
     });
     history.append(button);
@@ -122,7 +154,7 @@ byId("new-chat").addEventListener("click", () => {
   save();
   request.value = "";
   mode.value = "result";
-  openPanel();
+  focusConversation();
   renderChat(true);
   request.focus();
 });
