@@ -8,6 +8,7 @@ const transcript = byId("transcript");
 const storageKey = "relay-workbench-chats";
 const selectionKey = "relay-workbench-selected";
 const labels = {
+  "general-assistance": "通用协作",
   "code-review": "代码审查",
   "test-design": "测试设计",
   "local-file-plan": "本地文件计划",
@@ -159,7 +160,7 @@ document.querySelectorAll("[data-suggestion]").forEach((button) => {
       source.focus();
     } else {
       mode.value = "result";
-      request.value = "请委托 Codex 和 dsh 审查下面代码的边界条件，并让 AgentScope 设计测试：\n\n";
+      request.value = "请为这个任务查找合适的在线 Agent，并汇总结果：\n\n";
       updateComposer();
       request.focus();
       request.setSelectionRange(request.value.length, request.value.length);
@@ -399,7 +400,8 @@ function renderAgents(delegates) {
       const row = node("div", "agent-task");
       row.append(node("span", "task-label", labels[tool.skillId] || tool.skillId || "委托任务"));
       if (tool.objective) row.append(node("small", "", tool.objective));
-      const detail = node("small", "", tool.output?.error || tool.error || tool.output?.task_id || "等待远端返回");
+      const detail = node("small", "", tool.output?.error || tool.error
+        || tool.output?.task_id || tool.output?.message_id || "等待远端返回");
       detail.dataset.tone = tool.state;
       row.append(detail);
       card.append(row);
@@ -424,6 +426,7 @@ function renderTools(turn) {
     header.append(icon("chevron", "chevron"), icon("tool"), node("span", "tool-title",
       tool.agentId ? title + " · " + (tool.agentName || tool.agentId) : title), badge(...toolState(tool)));
     const meta = [tool.name];
+    if (tool.output?.transport) meta.push(tool.output.transport);
     if (tool.started) meta.push(new Date(tool.started).toLocaleTimeString("zh-CN", { hour12: false }));
     if (tool.started && tool.ended) meta.push(duration(tool.ended - tool.started));
     const detail = tool.output?.answer || tool.output?.error || tool.error

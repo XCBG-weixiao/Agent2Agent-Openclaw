@@ -21,19 +21,27 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
-from .common import PLAN, REVIEW, TEST, authorized, http_client, origin, required
+from .common import GENERAL, PLAN, REVIEW, TEST, authorized, http_client, origin, required
 from .local_plan import FilePlan, PLAN_INSTRUCTIONS
 from .registry import HEARTBEAT_SECONDS
 
 LOG = logging.getLogger(__name__)
 SKILLS = {
-    "codex": {REVIEW: ("Code review", "Review a pasted code snippet for correctness.")},
-    "dsh": {REVIEW: ("Independent review", "Provide a second read-only code review.")},
+    "codex": {
+        GENERAL: ("General assistance", "Analyze, troubleshoot, draft, or answer questions using Codex in read-only mode."),
+        REVIEW: ("Code review", "Review a pasted code snippet for correctness."),
+    },
+    "dsh": {
+        GENERAL: ("General assistance", "Analyze, plan, write, or solve a submitted task using dsh in read-only mode."),
+        REVIEW: ("Independent review", "Provide a second read-only code review."),
+    },
     "agentscope": {
+        GENERAL: ("General assistance", "Answer questions, summarize information, and draft or analyze content."),
         TEST: ("Test design", "Design tests for a pasted code snippet."),
         PLAN: ("Local file plan", "Plan a local UTF-8 text-file line-count report."),
     },
 }
+GENERAL_INSTRUCTIONS = "Complete the submitted task using the supplied context. Reply in the user's language."
 
 
 def create_card(kind: str, url: str) -> AgentCard:
@@ -88,9 +96,10 @@ def make_runner(kind: str):
         )
 
         async def run(skill: str, prompt: str) -> str | dict:
-            instructions = PLAN_INSTRUCTIONS if skill == PLAN else (
-                "Design concrete tests for the supplied code. Identify edge cases and expected outcomes."
-            )
+            instructions = {
+                PLAN: PLAN_INSTRUCTIONS,
+                TEST: "Design concrete tests for the supplied code. Identify edge cases and expected outcomes.",
+            }.get(skill, GENERAL_INSTRUCTIONS)
             reply = await Agent(name="specialist", system_prompt=instructions, model=model).reply(
                 Msg(name="user", content=[{"type": "text", "text": prompt}], role="user"),
             )
@@ -112,8 +121,12 @@ def make_runner(kind: str):
         model_key = required("DSH_MODEL_API_KEY")
 
     async def run(skill: str, prompt: str) -> str:
-        with TemporaryDirectory(prefix="edge-review-") as cwd:
-            message = f"Review this submitted code in read-only mode. Report findings and fixes.\n\n{prompt}"
+        with TemporaryDirectory(prefix="edge-task-") as cwd:
+            instructions = (
+                "Review this submitted code in read-only mode. Report findings and fixes."
+                if skill == REVIEW else GENERAL_INSTRUCTIONS
+            )
+            message = f"{instructions}\n\n{prompt}"
             if kind == "codex":
                 output_file = Path(cwd) / "result.txt"
                 await run_cli(
@@ -142,7 +155,7 @@ def make_runner(kind: str):
                 )
                 output = stdout.decode()
             if not output.strip():
-                raise ValueError(f"{kind} returned no review.")
+                raise ValueError(f"{kind} returned no answer.")
             return output
 
     return run

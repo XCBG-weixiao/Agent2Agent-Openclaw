@@ -6,7 +6,7 @@ from a2a.helpers import get_data_parts, get_text_parts, new_text_message
 from a2a.types import Role, SendMessageConfiguration, SendMessageRequest, TaskState
 from mcp.server.mcpserver import MCPServer
 
-from .common import PLAN, REVIEW, TEST, http_client, origin, rpc_card
+from .common import PLAN, http_client, origin, rpc_card
 from .local_plan import PLAN_INSTRUCTIONS
 
 
@@ -36,14 +36,12 @@ class Directory:
     async def delegate(self, agent_id: str, skill_id: str, text: str | None) -> dict:
         if not agent_id or not agent_id.isascii() or not agent_id.replace("-", "").isalnum():
             raise ValueError("Invalid agent ID.")
-        if skill_id not in {REVIEW, TEST, PLAN}:
-            raise ValueError("Unknown skill.")
         if skill_id == PLAN:
             if text is not None:
                 raise ValueError("Plan requests accept no text or local paths.")
             text = PLAN_INSTRUCTIONS
         elif not text or not text.strip():
-            raise ValueError("Provide the submitted code and review objective.")
+            raise ValueError("Provide the task and any context needed to complete it.")
 
         async with http_client(self.token) as directory:
             response = await directory.get(f"{self.url}/agents/{agent_id}")
@@ -70,6 +68,12 @@ class Directory:
             )
             async with asyncio.timeout(190):
                 async for event in client.send_message(request):
+                    result = {"agent_id": agent_id, "skill_id": skill_id, "transport": "A2A 1.0 JSON-RPC SendMessage"}
+                    if event.WhichOneof("payload") == "message" and skill_id != PLAN:
+                        answer = "\n".join(get_text_parts(event.message.parts)).strip()
+                        if not answer:
+                            raise ValueError("The A2A message returned no text.")
+                        return {**result, "message_id": event.message.message_id, "answer": answer}
                     if event.WhichOneof("payload") != "task":
                         raise ValueError("Expected a completed A2A task.")
                     task = event.task
@@ -78,7 +82,7 @@ class Directory:
                         detail = " ".join(get_text_parts(task.status.message.parts))
                         raise ValueError(f"Remote task ended in {state}. {detail}".strip())
                     parts = [part for artifact in task.artifacts for part in artifact.parts]
-                    result = {"agent_id": agent_id, "skill_id": skill_id, "task_id": task.id}
+                    result["task_id"] = task.id
                     if skill_id == PLAN:
                         plans = get_data_parts(parts)
                         if len(plans) != 1 or not isinstance(plans[0], dict):
@@ -88,7 +92,7 @@ class Directory:
                     if not answer:
                         raise ValueError("The A2A task returned no text.")
                     return {**result, "answer": answer}
-        raise ValueError("The A2A agent returned no task.")
+        raise ValueError("The A2A agent returned no response.")
 
 
 def make_mcp(directory: Directory) -> MCPServer:
@@ -96,7 +100,7 @@ def make_mcp(directory: Directory) -> MCPServer:
 
     @mcp.tool()
     async def discover_agents(skill_id: str | None = None) -> dict:
-        """Discover online remote agents, optionally by code-review, test-design, or local-file-plan."""
+        """List online agents and their published skills. Omit skill_id when exploring available capabilities."""
         try:
             return {"agents": await directory.discover(skill_id)}
         except httpx.HTTPError:
@@ -104,7 +108,7 @@ def make_mcp(directory: Directory) -> MCPServer:
 
     @mcp.tool()
     async def delegate_task(agent_id: str, skill_id: str, text: str | None = None) -> dict:
-        """Delegate to a discovered agent. For local-file-plan omit text; paths and file contents stay local."""
+        """Send a task using a skill ID advertised by the selected agent. For local-file-plan omit text."""
         try:
             result = await directory.delegate(agent_id, skill_id, text)
         except ValueError as exc:

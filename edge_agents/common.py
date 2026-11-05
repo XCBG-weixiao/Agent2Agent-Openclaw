@@ -6,6 +6,7 @@ import httpx
 from a2a.types import AgentCard
 from google.protobuf.json_format import ParseDict
 
+GENERAL = "general-assistance"
 REVIEW = "code-review"
 TEST = "test-design"
 PLAN = "local-file-plan"

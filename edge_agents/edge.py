@@ -1,6 +1,6 @@
 import asyncio
 import json
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, nullcontext
 from pathlib import Path
 from typing import Annotated, Literal
 from uuid import UUID, uuid4
@@ -22,7 +22,7 @@ class Turn(BaseModel):
     session_id: UUID | None = None
 
 
-class Review(Turn):
+class Chat(Turn):
     mode: Literal["result"]
     task: str = Field(min_length=1, max_length=48_000)
 
@@ -33,13 +33,15 @@ class Local(Turn):
     report: str
 
 
-Submission = Annotated[Review | Local, Field(discriminator="mode")]
+Submission = Annotated[Chat | Local, Field(discriminator="mode")]
 STATIC = Path(__file__).with_name("static")
-CHAT_PROMPT = """Answer ordinary questions and follow-ups directly using the conversation context.
-When the user asks for delegation or wants a code review or test design, use discover_agents
-and choose specialists by their advertised skills. If the user asks for particular specialists,
-delegate to each relevant one and report any unavailable expert. Include the relevant objective
-and code from the conversation, then summarize the actual results. Never invent a delegation.
+CHAT_PROMPT = """You are a general-purpose agent. Use the conversation context to answer directly
+when you can handle the request yourself. Use discover_agents when the user asks about online
+agents, requests delegation, or would benefit from remote help. If the relevant skill ID is
+unknown, list the online agents without a filter. Choose by the skills in the discovery result.
+When the user names agents, call the named agents that can help and report any that are unavailable.
+Give each agent the relevant objective and context, then synthesize the actual results.
+Never invent a delegation or claim to have executed an action without evidence.
 
 User message:
 """
@@ -81,14 +83,15 @@ def tool_output(raw) -> dict:
     return data
 
 
-def create_edge(directory: Directory, root: Path, gateway_port: int, port: int) -> FastAPI:
+def create_edge(directory: Directory, root: Path, gateway_port: int, port: int,
+                gateway_lifespan=nullcontext) -> FastAPI:
     mcp = make_mcp(directory)
     mcp_app = mcp.streamable_http_app(json_response=True, stateless_http=True)
     active_sessions: set[UUID] = set()
 
     @asynccontextmanager
     async def lifespan(app):
-        async with mcp_app.router.lifespan_context(mcp_app):
+        async with mcp_app.router.lifespan_context(mcp_app), gateway_lifespan():
             yield
 
     app = FastAPI(lifespan=lifespan)

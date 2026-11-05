@@ -19,7 +19,7 @@ For this on-device agent, we’ve opted to deploy a Vision Language Model (VLM) 
 
 协同有两条路径。第一条由远端 Agent 完成任务并直接返回结果。第二条由远端 Agent 制定结构化计划，端侧检查计划和操作权限，再用本地工具按步骤执行。采用 Plan–Executor 分工后，端侧只需具备可靠的校验和执行能力，就能完成由远端规划的任务。对本地文件的访问和执行决定留在端侧。
 
-首版通过远端代码审查和本地文件报告验证这两条路径，并在 macOS 和 Windows 上建立内存占用与冷启动时间基线。多个远端 Agent 可以独立上线和注册，端侧按需选择和组合它们，为端云协同、Agent 集群和多 Agent 协作提供基础。
+工作台支持通用对话与任务委托。多个远端 Agent 可以独立上线并发布能力，ZeroClaw 根据用户任务按需选择和组合它们。远端文本任务和本地文件报告用于验证两条链路，并在 macOS 和 Windows 上建立端侧内存与冷启动基线。
 
 ## 运行指南
 
@@ -168,18 +168,30 @@ curl -fsS http://127.0.0.1:8300/api/agents
 
 ### 6. 验证两条任务链路
 
-**获取远端结果**。在输入框左下角选择「对话」，提交下面的示例，然后在右侧任务面板查看发现、委托和返回结果。三个专家在线时，可核对 Codex 的初审、dsh 的复审以及 AgentScope 的测试建议。
+**获取远端结果**。在输入框左下角选择「对话」，可以直接提问或请求委托。提交下面的示例后，在右侧任务面板查看发现、委托和返回结果。
 
 ```text
-请让 Codex 和 dsh 分别检查空输入，再让 AgentScope 设计测试。
-
-def first(items):
-    return items[0]
+请让 dsh 和 AgentScope 分别拟一份 30 分钟项目启动会的议程，
+再结合两份建议给出一版可直接使用的议程。
 ```
 
 **按计划在本地执行**。在输入框左下角选择「本地执行」。源目录填 `.`，新报告路径填 `file-summary.md`。使用前面的示例工作目录时，报告会写入 `.edge-state/demo-workspace/file-summary.md`，其中 `sample.txt` 应统计为 2 行。再次执行请换一个报告名。用 `../outside.md` 作为报告路径应得到拒绝。
 
-### 7. 排错与性能测量
+### 7. Agent 在哪里注册和被发现
+
+1. **启动**。ZeroClaw 由端侧工作台启动。Codex、dsh 和 AgentScope 的 A2A 适配器各自独立启动，可与端侧同机，也可在其他主机上运行。启动想使用的适配器即可。Codex 和 dsh 的适配器在收到任务时拉起对应 CLI，AgentScope 适配器直接调用 Python Agent。
+2. **注册**。适配器启动时向 `AGENT_REGISTRY_URL` 的 `PUT /agents/{id}` 提交 Agent Card，其中包含技能和 A2A 地址。它每 5 秒调用 `POST /agents/{id}/heartbeat` 续约，租约 15 秒。本机默认注册目录是 `http://127.0.0.1:8310`。
+3. **发现**。ZeroClaw 根据对话需要调用 `edge__discover_agents`。端侧工具查询目录的 `GET /agents`，并按 `AGENT_ALLOWED_ORIGINS` 过滤。工作台右侧的「Agent 任务」显示同一份可发现列表。新适配器注册后，ZeroClaw 下一次查询即可发现它。
+4. **A2A 委托**。ZeroClaw 调用 `edge__delegate_task`，端侧工具从目录取回对应 Agent Card，直连 Card 里的 A2A 地址。请求使用 A2A 1.0 JSON-RPC 的 `SendMessage`，内置适配器返回带任务 ID 和产物的 A2A Task。任务面板展开委托记录即可查看协议和结果。中心目录负责登记、续约和发现，任务正文走 A2A 直连。 [A2A 发现文档](https://a2a-protocol.org/latest/topics/agent-discovery/) · [A2A SendMessage 规范](https://a2a-protocol.org/v1.0.0/specification/#941-sendmessage)
+
+本机可用以下命令查看 dsh 的 A2A 名片和端侧当前能发现的 Agent。Windows PowerShell 使用 `curl.exe`。
+
+```sh
+curl -fsS http://127.0.0.1:8312/.well-known/agent-card.json
+curl -fsS http://127.0.0.1:8300/api/agents
+```
+
+### 8. 排错与性能测量
 
 | 现象 | 检查 |
 | --- | --- |

@@ -8,6 +8,8 @@ from uuid import uuid4
 import httpx
 import pytest
 import uvicorn
+from a2a.helpers import new_text_message
+from fastapi import FastAPI, Request
 from google.protobuf.json_format import MessageToDict
 
 from edge_agents.common import PLAN, REVIEW
@@ -94,6 +96,40 @@ async def test_lease_can_only_be_renewed_by_its_owner():
         assert (await client.get("/agents/codex", headers=headers)).status_code == 200
         now[0] = 25
         assert (await client.get("/agents/codex", headers=headers)).status_code == 404
+
+
+async def test_a2a_delegates_an_arbitrary_registered_skill():
+    worker = FastAPI()
+
+    @worker.post("/a2a")
+    async def send(request: Request):
+        body = await request.json()
+        assert request.headers["A2A-Version"] == "1.0"
+        assert body["method"] == "SendMessage"
+        assert body["params"]["metadata"]["skill_id"] == "meeting-agenda"
+        assert body["params"]["message"]["parts"][0]["text"] == "Plan a kickoff."
+        return {
+            "jsonrpc": "2.0", "id": body["id"],
+            "result": {"message": MessageToDict(new_text_message("An agenda."))},
+        }
+
+    async with server(lambda _: create_registry(TOKEN)) as registry_url:
+        async with server(lambda _: worker) as worker_url:
+            card = create_card("agentscope", f"{worker_url}/a2a")
+            card.ClearField("skills")
+            card.skills.add(id="meeting-agenda", name="Meeting agendas")
+            async with httpx.AsyncClient(trust_env=False) as client:
+                response = await client.put(
+                    f"{registry_url}/agents/agenda",
+                    headers={"Authorization": f"Bearer {TOKEN}"},
+                    json={"card": MessageToDict(card)},
+                )
+                response.raise_for_status()
+            directory = Directory(registry_url, TOKEN, {worker_url})
+            assert [agent["id"] for agent in await directory.discover("meeting-agenda")] == ["agenda"]
+            result = await directory.delegate("agenda", "meeting-agenda", "Plan a kickoff.")
+            assert result["answer"] == "An agenda."
+            assert result["message_id"]
 
 
 def test_plan_executes_locally_without_overwriting(tmp_path):

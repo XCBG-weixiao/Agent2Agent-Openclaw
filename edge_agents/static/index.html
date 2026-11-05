@@ -17,7 +17,6 @@
     <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M14 5v14M17 9h1M17 12h1"/></symbol>
     <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h15m-6-6 6 6-6 6"/></symbol>
     <symbol id="i-send" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></symbol>
-    <symbol id="i-code" viewBox="0 0 24 24"><path d="m8 6-6 6 6 6m8-12 6 6-6 6m-3-14-2 16"/></symbol>
     <symbol id="i-file" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6zM14 3v5h4M9 12h6m-6 4h6"/></symbol>
     <symbol id="i-network" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="18" r="2"/><circle cx="19" cy="18" r="2"/><path d="m11 7-5 9m7-9 5 9M7 18h10"/></symbol>
     <symbol id="i-terminal" viewBox="0 0 24 24"><path d="m5 7 5 5-5 5m7 0h7"/></symbol>
@@ -59,7 +58,7 @@
             <h2>今天想完成什么？</h2>
             <p>和 ZeroClaw 对话，或请它调动在线专家一起完成任务。</p>
             <div class="suggestions" aria-label="示例任务">
-              <button type="button" data-suggestion="review"><span class="suggestion-icon"><svg><use href="#i-code"/></svg></span><span><strong>审查一段代码</strong><small>委托专家检查边界条件</small></span><svg class="suggestion-arrow"><use href="#i-arrow"/></svg></button>
+              <button type="button" data-suggestion="delegate"><span class="suggestion-icon"><svg><use href="#i-network"/></svg></span><span><strong>委托一个任务</strong><small>发现在线 Agent 并分工协作</small></span><svg class="suggestion-arrow"><use href="#i-arrow"/></svg></button>
               <button type="button" data-suggestion="plan"><span class="suggestion-icon"><svg><use href="#i-file"/></svg></span><span><strong>生成本地报告</strong><small>远端规划，端侧执行</small></span><svg class="suggestion-arrow"><use href="#i-arrow"/></svg></button>
             </div>
           </div>
@@ -68,7 +67,7 @@
           <form class="composer chat-width" id="task">
             <div class="compose-fields">
               <label class="sr-only" for="request">消息</label>
-              <textarea id="request" maxlength="48000" rows="2" placeholder="发消息给 ZeroClaw，或粘贴代码让专家审查…"></textarea>
+              <textarea id="request" maxlength="48000" rows="2" placeholder="问个问题、描述任务，或请 ZeroClaw 委托其他 Agent…"></textarea>
               <div class="plan-fields" id="local" hidden>
                 <label>源目录<input id="source" value="." required disabled></label>
                 <label>新报告路径<input id="report" value="file-summary.md" required disabled></label>

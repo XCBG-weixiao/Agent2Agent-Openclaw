@@ -1,9 +1,11 @@
 import argparse
+import asyncio
 import json
+import logging
 import os
 import shutil
-import subprocess
 import sys
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import uvicorn
@@ -62,7 +64,6 @@ def run_edge(args, token: str) -> None:
         raise ValueError("The local workspace must be a directory.")
     origins = {origin(item.strip()) for item in required("AGENT_ALLOWED_ORIGINS").split(",")}
     directory = Directory(required("AGENT_REGISTRY_URL"), token, origins)
-    app = create_edge(directory, root, args.gateway_port, args.port)
     state = (args.state_dir or Path(".edge-state") / f"gateway-{args.gateway_port}").resolve()
     state.mkdir(parents=True, exist_ok=True)
     (state / "config.toml").write_text(edge_config(args.port, args.gateway_port, state), encoding="utf-8")
@@ -71,16 +72,32 @@ def run_edge(args, token: str) -> None:
            if key not in {"AGENT_PLATFORM_TOKEN", "DSH_MODEL_API_KEY", "AGENTSCOPE_MODEL_API_KEY",
                           "EDGE_MODEL_API_KEY"}}
     env["ZEROCLAW_providers__models__custom__default__api_key"] = required("EDGE_MODEL_API_KEY")
-    with subprocess.Popen([binary, "--config-dir", str(state), "gateway"], env=env) as gateway:
+
+    @asynccontextmanager
+    async def gateway_lifespan():
+        gateway = await asyncio.create_subprocess_exec(binary, "--config-dir", str(state), "gateway", env=env)
+
+        async def watch():
+            exit_code = await gateway.wait()
+            if not server.should_exit:
+                logging.getLogger(__name__).error("ZeroClaw gateway exited with status %s.", exit_code)
+                server.should_exit = True
+
+        monitor = asyncio.create_task(watch())
         try:
-            uvicorn.run(app, host="127.0.0.1", port=args.port, access_log=False)
+            yield
         finally:
-            if gateway.poll() is None:
+            if gateway.returncode is None:
                 gateway.terminate()
                 try:
-                    gateway.wait(timeout=5)
-                except subprocess.TimeoutExpired:
+                    await asyncio.wait_for(gateway.wait(), timeout=5)
+                except TimeoutError:
                     gateway.kill()
+            await monitor
+
+    app = create_edge(directory, root, args.gateway_port, args.port, gateway_lifespan)
+    server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=args.port, access_log=False))
+    server.run()
 
 
 def main() -> None:
