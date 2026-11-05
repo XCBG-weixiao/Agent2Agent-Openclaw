@@ -3,48 +3,117 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>端云协同工作台</title>
+  <meta name="color-scheme" content="dark">
+  <title>Relay · Agent 工作台</title>
   <link rel="stylesheet" href="/static/style.css">
   <script defer src="/static/app.js"></script>
 </head>
 <body>
-  <header>
-    <p>ZEROCLAW · A2A</p>
-    <h1>端云协同工作台</h1>
-    <p>发现在线专家，将任务委托给远端，或在本机执行它提供的计划。</p>
-  </header>
-  <main>
-    <section>
-      <h2>新任务</h2>
-      <form id="task">
-        <label for="mode">执行方式</label>
-        <select id="mode">
-          <option value="result">获取远端结果</option>
-          <option value="plan">按计划在本地执行</option>
-        </select>
-        <div id="direct">
-          <label for="request">代码和审查要求</label>
-          <textarea id="request" maxlength="48000" rows="8" placeholder="粘贴代码，并说明你希望专家检查什么。"></textarea>
+  <svg class="icon-library" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <symbol id="i-relay" viewBox="0 0 24 24"><path d="M5 5h6v6H5zM13 13h6v6h-6zM11 8h5v5M8 11v5h5"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-chat" viewBox="0 0 24 24"><path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H5l1.4-3.4A7.5 7.5 0 1 1 20 11.5Z"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+    <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M14 5v14M17 9h1M17 12h1"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h15m-6-6 6 6-6 6"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></symbol>
+    <symbol id="i-code" viewBox="0 0 24 24"><path d="m8 6-6 6 6 6m8-12 6 6-6 6m-3-14-2 16"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6zM14 3v5h4M9 12h6m-6 4h6"/></symbol>
+    <symbol id="i-network" viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><circle cx="5" cy="18" r="2"/><circle cx="19" cy="18" r="2"/><path d="m11 7-5 9m7-9 5 9M7 18h10"/></symbol>
+    <symbol id="i-terminal" viewBox="0 0 24 24"><path d="m5 7 5 5-5 5m7 0h7"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></symbol>
+    <symbol id="i-tool" viewBox="0 0 24 24"><path d="M14 5a4 4 0 0 0-4 5l-6 6a2 2 0 0 0 3 3l6-6a4 4 0 0 0 5-5l-3 3-2-2 3-3Z"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+  </svg>
+
+  <div class="app">
+    <header class="topbar">
+      <button class="icon-button mobile-nav" id="show-history" type="button" aria-label="打开会话列表" aria-controls="sidebar" aria-expanded="false"><svg><use href="#i-menu"/></svg></button>
+      <div class="wordmark"><span class="brand-mark"><svg><use href="#i-relay"/></svg></span><span>Relay</span><span class="brand-divider"></span><span class="brand-caption">端云协同工作台</span></div>
+      <div class="topbar-right">
+        <span class="connection" id="connection" data-state="checking"><span></span><span id="connection-text">正在连接</span></span>
+        <button class="icon-button mobile-nav" id="show-inspector" type="button" aria-label="打开任务面板" aria-controls="inspector" aria-expanded="false"><svg><use href="#i-panel"/></svg></button>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar" id="sidebar" aria-label="会话">
+        <button class="new-chat" id="new-chat" type="button"><svg><use href="#i-plus"/></svg>新建会话</button>
+        <div class="sidebar-heading">会话历史</div>
+        <nav class="history" id="history" aria-label="会话历史"></nav>
+        <div class="sidebar-footer">
+          <span class="side-icon"><svg><use href="#i-terminal"/></svg></span>
+          <div><strong>本地工作区</strong><small>ZeroClaw · A2A</small></div>
         </div>
-        <div id="local" hidden>
-          <p>统计指定目录内 UTF-8 文本文件的行数，并生成 Markdown 报告。</p>
-          <label for="source">源目录（相对路径）</label>
-          <input id="source" value=".">
-          <label for="report">新报告（相对路径）</label>
-          <input id="report" value="file-summary.md">
+      </aside>
+
+      <main class="chat">
+        <div class="chat-heading">
+          <span class="chat-heading-icon"><svg><use href="#i-chat"/></svg></span>
+          <h1 id="chat-title">新会话</h1>
         </div>
-        <button id="submit">提交任务</button>
-      </form>
-    </section>
-    <aside>
-      <h2>在线专家</h2>
-      <ul id="agents" aria-live="polite"></ul>
-    </aside>
-    <section class="wide">
-      <h2>协作过程</h2>
-      <ol id="events" aria-live="polite"></ol>
-      <pre id="output" aria-live="polite" hidden></pre>
-    </section>
-  </main>
+        <div class="conversation" id="conversation">
+          <div class="chat-width transcript" id="transcript" role="log" aria-label="对话消息"></div>
+          <div class="chat-width empty-chat" id="empty-chat">
+            <div class="hero-emblem"><svg><use href="#i-relay"/></svg></div>
+            <h2>今天想完成什么？</h2>
+            <p>和 ZeroClaw 对话，或请它调动在线专家一起完成任务。</p>
+            <div class="suggestions" aria-label="示例任务">
+              <button type="button" data-suggestion="review"><span class="suggestion-icon"><svg><use href="#i-code"/></svg></span><span><strong>审查一段代码</strong><small>委托专家检查边界条件</small></span><svg class="suggestion-arrow"><use href="#i-arrow"/></svg></button>
+              <button type="button" data-suggestion="plan"><span class="suggestion-icon"><svg><use href="#i-file"/></svg></span><span><strong>生成本地报告</strong><small>远端规划，端侧执行</small></span><svg class="suggestion-arrow"><use href="#i-arrow"/></svg></button>
+            </div>
+          </div>
+        </div>
+        <div class="compose-area">
+          <form class="composer chat-width" id="task">
+            <div class="compose-fields">
+              <label class="sr-only" for="request">消息</label>
+              <textarea id="request" maxlength="48000" rows="2" placeholder="发消息给 ZeroClaw，或粘贴代码让专家审查…"></textarea>
+              <div class="plan-fields" id="local" hidden>
+                <label>源目录<input id="source" value="." required disabled></label>
+                <label>新报告路径<input id="report" value="file-summary.md" required disabled></label>
+              </div>
+            </div>
+            <div class="composer-actions">
+              <label class="mode-control">
+                <svg><use href="#i-terminal"/></svg>
+                <span class="sr-only">执行方式</span>
+                <select id="mode">
+                  <option value="result">对话</option>
+                  <option value="plan">本地执行</option>
+                </select>
+              </label>
+              <span class="composer-shortcut" id="shortcut">Enter 发送 · Shift + Enter 换行</span>
+              <button class="send" id="submit" type="submit" aria-label="发送消息" disabled><svg><use href="#i-send"/></svg></button>
+            </div>
+          </form>
+          <div class="compose-footnote chat-width" id="compose-footnote">ZeroClaw 会按需调用已注册的专家。</div>
+        </div>
+      </main>
+
+      <aside class="inspector" id="inspector" aria-label="任务面板">
+        <div class="inspector-header"><svg><use href="#i-panel"/></svg><h2>任务面板</h2><span class="live-dot" aria-label="实时更新"></span></div>
+        <div class="inspector-scroll">
+          <section class="inspect-section">
+            <div class="section-title"><h3>总任务</h3><span class="badge" id="run-state" data-tone="idle">待开始</span></div>
+            <div class="run-card">
+              <p id="objective">发送消息后，这里会显示本轮任务。</p>
+              <div class="run-metrics"><span><svg><use href="#i-clock"/></svg><span id="elapsed">—</span></span><span id="task-count">0 次委托</span></div>
+              <ol class="phases" id="phases" aria-label="任务进度"></ol>
+            </div>
+          </section>
+          <section class="inspect-section">
+            <div class="section-title"><h3>Agent 任务</h3><span class="section-meta" id="agent-count">连接目录中</span></div>
+            <div id="agents" class="agents"></div>
+          </section>
+          <section class="inspect-section tool-section">
+            <div class="section-title"><h3>工具调用</h3><span class="section-meta" id="tool-count">0 次</span></div>
+            <div id="tools" class="tools"></div>
+          </section>
+        </div>
+      </aside>
+    </div>
+    <button class="backdrop" id="close-panel" type="button" aria-label="关闭侧栏" hidden></button>
+  </div>
 </body>
 </html>

@@ -148,7 +148,7 @@ AGENTSCOPE_MODEL_API_KEY=替换为密钥
 | 4 | AgentScope，端口 8313 | `uv run --no-sync --env-file .env python -m edge_agents worker agentscope --port 8313 --public-url http://127.0.0.1:8313/a2a` |
 | 5 | 端侧工作台，端口 8300；ZeroClaw 网关，端口 8301 | `uv run --no-sync --env-file .env python -m edge_agents edge --workspace .edge-state/demo-workspace` |
 
-打开 [本地工作台](http://127.0.0.1:8300/)。也可以用下面的命令检查就绪状态和在线专家。在 Windows PowerShell 上将 `curl` 写作 `curl.exe`。
+打开 [本地工作台](http://127.0.0.1:8300/)。左侧列出会话，中间可以连续向 ZeroClaw 提问，右侧任务面板显示当前轮的目标、专家任务、执行阶段和工具结果。窄屏上用右上角按钮打开任务面板。会话记录保存在当前浏览器，ZeroClaw 的上下文默认保存在本机的 `.edge-state/gateway-8301/`。也可以用下面的命令检查就绪状态和在线专家。在 Windows PowerShell 上将 `curl` 写作 `curl.exe`。
 
 ```sh
 curl -fsS http://127.0.0.1:8300/api/ready
@@ -168,7 +168,7 @@ curl -fsS http://127.0.0.1:8300/api/agents
 
 ### 6. 验证两条任务链路
 
-**获取远端结果**。在页面选择「获取远端结果」，提交下面的示例，查看协作时间线中的发现、委托和返回事件。三个专家在线时，可核对 Codex 的初审、dsh 的复审以及 AgentScope 的测试建议。
+**获取远端结果**。在输入框左下角选择「对话」，提交下面的示例，然后在右侧任务面板查看发现、委托和返回结果。三个专家在线时，可核对 Codex 的初审、dsh 的复审以及 AgentScope 的测试建议。
 
 ```text
 请让 Codex 和 dsh 分别检查空输入，再让 AgentScope 设计测试。
@@ -177,7 +177,7 @@ def first(items):
     return items[0]
 ```
 
-**按计划在本地执行**。在页面选择「按计划在本地执行」。源目录填 `.`，新报告路径填 `file-summary.md`。使用前面的示例工作目录时，报告会写入 `.edge-state/demo-workspace/file-summary.md`，其中 `sample.txt` 应统计为 2 行。再次执行请换一个报告名。用 `../outside.md` 作为报告路径应得到拒绝。
+**按计划在本地执行**。在输入框左下角选择「本地执行」。源目录填 `.`，新报告路径填 `file-summary.md`。使用前面的示例工作目录时，报告会写入 `.edge-state/demo-workspace/file-summary.md`，其中 `sample.txt` 应统计为 2 行。再次执行请换一个报告名。用 `../outside.md` 作为报告路径应得到拒绝。
 
 ### 7. 排错与性能测量
 

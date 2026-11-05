@@ -110,6 +110,7 @@ def main():
                     sys.executable, "-m", "edge_agents", "edge",
                     "--workspace", workspace, "--port", str(args.port),
                     "--gateway-port", str(args.gateway_port),
+                    "--state-dir", str(root / f"gateway-{index}"),
                 ], stdout=logs, stderr=subprocess.STDOUT,
                     creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0)
                 try:

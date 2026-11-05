@@ -3,6 +3,7 @@ import json
 import socket
 from contextlib import asynccontextmanager
 from copy import deepcopy
+from uuid import uuid4
 
 import httpx
 import pytest
@@ -117,7 +118,7 @@ def test_invalid_plan_and_paths_are_rejected_before_write(tmp_path):
 async def test_edge_executes_a_tool_plan_without_sending_paths(monkeypatch, tmp_path):
     from edge_agents import edge
 
-    async def gateway(port, prompt):
+    async def gateway(port, prompt, session_id):
         assert "private-source" not in prompt
         assert "private-report.md" not in prompt
         yield {
@@ -142,3 +143,34 @@ async def test_edge_executes_a_tool_plan_without_sending_paths(monkeypatch, tmp_
     events = [json.loads(line) for line in response.text.splitlines()]
     assert [event["type"] for event in events] == ["tool_result", "plan_validated", "done"]
     assert "| data.txt | 2 |" in (tmp_path / "private-report.md").read_text(encoding="utf-8")
+
+
+async def test_chat_keeps_the_session_and_relays_live_events(monkeypatch, tmp_path):
+    from edge_agents import edge
+
+    session = uuid4()
+    seen = []
+
+    async def gateway(port, prompt, session_id):
+        seen.append((prompt, session_id))
+        yield {"type": "tool_call", "name": "edge__delegate_task", "id": "delegate",
+               "args": {"agent_id": "dsh", "skill_id": REVIEW, "text": "Check an empty list"}}
+        yield {"type": "chunk", "content": "Review"}
+        yield {"type": "done", "full_response": "Review complete."}
+
+    monkeypatch.setattr(edge, "frames", gateway)
+    app = create_edge(Directory("http://127.0.0.1:8310", TOKEN, set()), tmp_path, 8301, 8300)
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://127.0.0.1:8300",
+    ) as client:
+        for prompt in ("Review my function.", "What about empty input?"):
+            response = await client.post("/api/runs", json={
+                "mode": "result", "task": prompt, "session_id": str(session),
+            })
+            events = [json.loads(line) for line in response.text.splitlines()]
+            assert [event["type"] for event in events] == ["tool_call", "delta", "done"]
+            assert events[0]["objective"] == "Check an empty list"
+            assert events[-1]["text"] == "Review complete."
+
+    assert [sid for _, sid in seen] == [session, session]
+    assert seen[1][0].endswith("What about empty input?")
